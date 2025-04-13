@@ -26,7 +26,7 @@ def get_connected_devices(device_type=""):
         return []
 
 
-def monitor_new_devices(interval=5, device_type=""):
+def monitor_devices(interval=5, device_type=""):
     initial_devices = get_connected_devices(device_type)
 
     while True:
@@ -34,17 +34,34 @@ def monitor_new_devices(interval=5, device_type=""):
         current_devices = get_connected_devices(device_type)
 
         new_devices = [device for device in current_devices if device not in initial_devices]
-        if new_devices:
-            additional_devices = [0]
-            while additional_devices:
+        unplugged_devices = [device for device in initial_devices if device not in current_devices]
+
+        if new_devices or unplugged_devices:
+            changed_devices = {"added": [0], "removed": [0]}
+            while changed_devices["added"] or changed_devices["removed"]:
                 time.sleep(1)
-                additional_devices = [device for device in get_connected_devices(device_type) if device not in initial_devices and device not in new_devices]
-                if additional_devices:
-                    current_devices.extend(device for device in additional_devices)
-                    new_devices.extend(device for device in additional_devices)
+                devices = get_connected_devices(device_type)
+                changed_devices["added"] = [device for device in devices if device not in initial_devices and device not in new_devices]
+                changed_devices["removed"] = [device for device in initial_devices if device not in devices and device not in unplugged_devices]
+
+                if changed_devices["added"]:
+                    current_devices.extend(device for device in changed_devices["added"])
+                    new_devices.extend(device for device in changed_devices["added"])
+
+                if changed_devices["removed"]:
+                    current_devices.remove(device for device in changed_devices["removed"])
+                    unplugged_devices.extend(device for device in changed_devices["removed"])
 
             # replace with DB filling function
             for device in new_devices:
+                print("Added device:")
+                if len(device) == 3:
+                    print(f"Class: {device["Class"]}\nFriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\n")
+                else:
+                    print(f"FriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\n")
+
+            for device in unplugged_devices:
+                print("Unplugged device:")
                 if len(device) == 3:
                     print(f"Class: {device["Class"]}\nFriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\n")
                 else:
@@ -58,5 +75,5 @@ def monitor_new_devices(interval=5, device_type=""):
 
 
 def start_monitoring_in_background(interval=5, device_type=""):
-    monitor_thread = threading.Thread(target=monitor_new_devices, args=(interval,device_type,), daemon=True)
+    monitor_thread = threading.Thread(target=monitor_devices, args=(interval,device_type,), daemon=True)
     monitor_thread.start()
