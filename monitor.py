@@ -42,7 +42,8 @@ def monitor_new_devices(interval=5, device_type=""):
                 if additional_devices:
                     current_devices.extend(device for device in additional_devices)
                     new_devices.extend(device for device in additional_devices)
-            print("-----------------------")
+
+            # replace with DB filling function
             for device in new_devices:
                 if len(device) == 3:
                     print(f"Class: {device["Class"]}\nFriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\n")
@@ -59,10 +60,3 @@ def monitor_new_devices(interval=5, device_type=""):
 def start_monitoring_in_background(interval=5, device_type=""):
     monitor_thread = threading.Thread(target=monitor_new_devices, args=(interval,device_type,), daemon=True)
     monitor_thread.start()
-
-
-if __name__ == "__main__":
-    start_monitoring_in_background(interval=1)
-
-    while True:
-        pass
