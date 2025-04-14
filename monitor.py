@@ -4,7 +4,7 @@ import time
 from commands import get_connected_devices_by_class
 
 
-def get_connected_devices(device_type=""):
+def get_connected_devices(device_type: str=""):
     try:
         result = get_connected_devices_by_class(device_type)
         devices = []
@@ -19,14 +19,14 @@ def get_connected_devices(device_type=""):
             elif len(columns) >= 3 and device_type != "":
                 instance_id = columns[-1]
                 friendly_name = ''.join(columns[:-1])
-                devices.append({"FriendlyName": friendly_name, "InstanceId": instance_id})
+                devices.append({"Class": device_type, "FriendlyName": friendly_name, "InstanceId": instance_id})
         return devices
     except Exception as e:
         print(f"Error fetching devices: {e}")
         return []
 
 
-def monitor_devices(interval=5, device_type=""):
+def monitor_devices(interval: float=5, device_type: str=""):
     initial_devices = get_connected_devices(device_type)
 
     while True:
@@ -74,6 +74,6 @@ def monitor_devices(interval=5, device_type=""):
             time.sleep(sleep_time)
 
 
-def start_monitoring_in_background(interval=5, device_type=""):
+def start_monitoring_in_background(interval: float=5, device_type: str=""):
     monitor_thread = threading.Thread(target=monitor_devices, args=(interval,device_type,), daemon=True)
     monitor_thread.start()
