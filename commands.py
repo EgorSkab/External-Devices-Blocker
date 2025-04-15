@@ -1,12 +1,24 @@
 import subprocess
 
 
-def get_connected_devices_by_class(device_type: str=""):
+def get_connected_devices_by_class(device_type: str=None, status: str=None):
     try:
-        if device_type == "":
-            return subprocess.check_output(f'powershell.exe Get-PnpDevice -Status \"OK\" | Select-Object -Property Class, FriendlyName, InstanceID | Out-String -Width 500', text=True, errors="replace").strip()
-        else:
-            return subprocess.check_output(f'powershell.exe Get-PnpDevice -Class \"{device_type}\" -Status \"OK\" | Select-Object -Property FriendlyName, InstanceID | Out-String -Width 500', text=True, errors="replace").strip()
+        command = f'powershell.exe Get-PnpDevice'
+        if device_type:
+            command += f' -Class "{device_type}"'
+        if status:
+            command += f' -Status "{status}"'
+        command += f' | Select-Object -Property Status, Class, FriendlyName, InstanceID | Out-String -Width 500'
+        result = subprocess.check_output(command, text=True, errors="replace").strip().splitlines()
+        connections = []
+        for line in result[3:]:
+            columns = line.split()
+            device_status = columns[0]
+            device_class = columns[1]
+            friendly_name = ''.join(columns[2:-1])
+            instance_id = columns[-1]
+            connections.append({"Status": device_status, "Class": device_class, "FriendlyName": friendly_name, "InstanceId": instance_id})
+        return connections
     except subprocess.CalledProcessError as e:
         return f"Error retrieving {device_type} devices: {str(e)}"
 
