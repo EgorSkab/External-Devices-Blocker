@@ -2,7 +2,7 @@ import threading
 import time
 
 from commands import get_connected_devices_by_class
-from database import add_device, edit_device, get_devices
+from database import add_device, edit_device, get_devices, initial_devices
 
 
 def monitor_devices(interval: float=5, device_type: str=None):
