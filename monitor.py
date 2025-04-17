@@ -67,3 +67,9 @@ def monitor_devices(interval: float=5, device_type: str=None):
 def start_monitoring_in_background(interval: float=5, device_type: str=""):
     monitor_thread = threading.Thread(target=monitor_devices, args=(interval,device_type,), daemon=True)
     monitor_thread.start()
+
+
+# usage example
+# if __name__ == '__main__':
+#     initial_devices()
+#     start_monitoring_in_background()
