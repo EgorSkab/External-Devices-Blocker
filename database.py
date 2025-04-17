@@ -8,7 +8,7 @@ def initial_devices(components: list[dict[str, str, str]]=None):
     cursor.execute("DELETE FROM Devices")
     cursor.execute("DELETE FROM Components")
 
-    cursor.execute(f"INSERT INTO Devices (ID, Name, Permission, Connected) VALUES (0, 'InitialDevices', TRUE, TRUE)")
+    cursor.execute("INSERT INTO Devices (ID, Name, Permission, Connected) VALUES (0, 'InitialDevices', TRUE, TRUE)")
 
     if not components:
         from commands import get_connected_devices_by_class
@@ -16,11 +16,12 @@ def initial_devices(components: list[dict[str, str, str]]=None):
 
     query = "INSERT INTO Components (Device_ID, IID, Class, Name, Status) VALUES "
     for component in components:
-        query += f"(0, '{component["InstanceId"]}', '{component["Class"]}', '{component["FriendlyName"]}', 'OK'), "
+        query += f"(0, '{component["InstanceId"]}', '{component["Class"]}', '{component["FriendlyName"]}', '{component['Status']}'), "
     cursor.execute(query[:-2])
 
     connection.commit()
     connection.close()
+    print("Initial devices table has been created")
 
 
 def add_device(components: list[dict[str, str]]):
@@ -28,7 +29,7 @@ def add_device(components: list[dict[str, str]]):
         return "Got no connections"
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
-    cursor.execute(f"INSERT INTO Devices (Connected) VALUES (TRUE)")
+    cursor.execute("INSERT INTO Devices (Connected) VALUES (TRUE)")
     connection.commit()
     device_id = cursor.execute("SELECT ID FROM Devices WHERE ROWID=last_insert_rowid()").fetchone()[0]
     query = "INSERT INTO Components (Device_ID, IID, Class, Name, Status) VALUES "
@@ -42,8 +43,27 @@ def add_device(components: list[dict[str, str]]):
 def edit_device(components: list[dict[str, str]]):
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
+    device = cursor.execute(f"SELECT Device_ID FROM Components WHERE IID='{components[0]["InstanceId"]}'").fetchone()[0]
+    if device == 0:
+        remove_components(components)
+        add_device(components)
+        return
+    else:
+        if components[0]["Status"] == "OK":
+            cursor.execute(f"UPDATE Devices SET Connected=TRUE WHERE ID={device}")
+        else:
+            cursor.execute(f"UPDATE Devices SET Connected=FALSE WHERE ID={device}")
     for component in components:
         cursor.execute(f"UPDATE Components SET Name='{component["FriendlyName"]}', Class='{component["Class"]}', Status='{component["Status"]}' WHERE IID='{component['InstanceId']}'")
+    connection.commit()
+    connection.close()
+
+
+def remove_components(components: list[dict[str, str]]):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    for component in components:
+        cursor.execute(f"DELETE FROM Components WHERE IID='{component['InstanceId']}'")
     connection.commit()
     connection.close()
 
