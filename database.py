@@ -29,7 +29,7 @@ def add_device(components: list[dict[str, str]]):
         return "Got no connections"
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO Devices (Connected) VALUES (TRUE)")
+    cursor.execute(f"INSERT INTO Devices (Connected) VALUES ({'TRUE' if components[0]['Status'] == 'OK' else 'FALSE'})")
     connection.commit()
     device_id = cursor.execute("SELECT ID FROM Devices WHERE ROWID=last_insert_rowid()").fetchone()[0]
     query = "INSERT INTO Components (Device_ID, IID, Class, Name, Status) VALUES "
