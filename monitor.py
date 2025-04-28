@@ -34,7 +34,7 @@ def monitor_devices(interval: float=5, device_type: str=None):
 
             if not first_loop:
                 for device in changed_devices:
-                    print("Changed device:")
+                    print("Changed devices:")
                     print(f"Class: {device["Class"]}\nFriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\nStatus: {device['Status']}\n")
 
             i = 0
@@ -72,4 +72,6 @@ def start_monitoring_in_background(interval: float=5, device_type: str=""):
 # usage example
 # if __name__ == '__main__':
 #     initial_devices()
-#     start_monitoring_in_background()
+#     start_monitoring_in_background(1)
+#     while True:
+#         pass

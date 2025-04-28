@@ -3,7 +3,7 @@ import subprocess
 
 def get_connected_devices_by_class(device_type: str=None, status: str=None):
     try:
-        command = f'powershell.exe Get-PnpDevice'
+        command = f'powershell.exe chcp 1251; Get-PnpDevice'
         if device_type:
             command += f' -Class "{device_type}"'
         if status:
@@ -11,7 +11,7 @@ def get_connected_devices_by_class(device_type: str=None, status: str=None):
         command += f' | Select-Object -Property Status, Class, FriendlyName, InstanceID | Out-String -Width 500'
         result = subprocess.check_output(command, text=True, errors="replace").strip().splitlines()
         connections = []
-        for line in result[3:]:
+        for line in result[4:]:
             columns = line.split()
             device_status = columns[0]
             device_class = columns[1]
