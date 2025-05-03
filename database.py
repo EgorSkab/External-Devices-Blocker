@@ -68,34 +68,65 @@ def remove_components(components: list[dict[str, str]]):
     connection.close()
 
 
-def get_devices(id: int=None, iid: str=None, type: str=None, name: str=None, status: str=None):
+def get_components(id: int=None, iid: str=None, type: str=None, name: str=None, status: str=None):
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
     query = f"SELECT * FROM Components"
     if id or iid or type or name or status:
         query += f" WHERE "
-        params = 0
+        params = False
         if id:
-            params += 1
+            params = True
             query += f"Device_ID={id} "
         if iid:
             if params:
                 query += f"AND "
-            params += 1
+            else:
+                params = True
             query += f"IID='{iid}' "
         if type:
             if params:
                 query += f"AND "
-            params += 1
+            else:
+                params = True
             query += f"Class='{type}' "
         if name:
             if params:
                 query += f"AND "
-            params += 1
+            else:
+                params = True
             query += f"Name='{name}' "
         if status:
             if params:
                 query += f"AND "
             query += f"Status='{status}' "
+    components = cursor.execute(query).fetchall()
+    return components
+
+def get_devices(id: str=None, name: str=None, permission: str=None, connected: str=None):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    query = f"SELECT * FROM Devices"
+    params = False
+    if id:
+        query += f" WHERE "
+        params = True
+        query += f"ID={id} "
+    if name:
+        if params:
+            query += f"AND "
+        else:
+            params = True
+        query += f"Name='{name}' "
+    if permission:
+        if params:
+            query += f"AND "
+        else:
+            params = True
+        query += f"Permission='{permission}' "
+    if connected:
+        if params:
+            query += f"AND "
+        query = f"Connected={connected} "
     devices = cursor.execute(query).fetchall()
     return devices

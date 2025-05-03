@@ -2,11 +2,11 @@ import threading
 import time
 
 from commands import get_connected_devices_by_class
-from database import add_device, edit_device, get_devices, initial_devices
+from database import add_device, edit_device, get_components, initial_devices
 
 
 def monitor_devices(interval: float=5, device_type: str=None):
-    db_devices = get_devices(type=device_type)
+    db_devices = get_components(type=device_type)
     prev_devices = []
     first_loop = True
     for device in db_devices:
@@ -42,7 +42,7 @@ def monitor_devices(interval: float=5, device_type: str=None):
             added_devices = []
             while i < length:
                 device = changed_devices[i]
-                if not get_devices(iid=device["InstanceId"]):
+                if not get_components(iid=device["InstanceId"]):
                     added_devices.append(device)
                     changed_devices.remove(device)
                     i -= 1
