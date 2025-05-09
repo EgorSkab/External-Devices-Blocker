@@ -2,17 +2,21 @@ import threading
 import time
 
 from commands import get_connected_devices_by_class
-from database import add_device, edit_device, get_components, initial_devices
+from database import add_device, edit_device, get_components
 
+monitoring = False
+actual_monitoring = False
+devices_changed = False
 
 def monitor_devices(interval: float=5, device_type: str=None):
+    global actual_monitoring
     db_devices = get_components(type=device_type)
     prev_devices = []
     first_loop = True
     for device in db_devices:
         prev_devices.append({"Status": device[4], "Class": device[2], "FriendlyName": device[3], "InstanceId": device[1]})
 
-    while True:
+    while monitoring:
         init_time = time.time()
         current_devices = get_connected_devices_by_class(device_type)
 
@@ -52,21 +56,29 @@ def monitor_devices(interval: float=5, device_type: str=None):
                 edit_device(changed_devices)
             if added_devices:
                 add_device(added_devices)
+            global devices_changed
+            devices_changed = True
 
-        prev_devices = current_devices
+            prev_devices = current_devices
 
         if first_loop:
             first_loop = False
-            print("Starting monitoring...")
+            actual_monitoring = True
 
         sleep_time = interval - (time.time() - init_time)
         if sleep_time > 0:
             time.sleep(sleep_time)
-
+    actual_monitoring = False
 
 def start_monitoring_in_background(interval: float=5, device_type: str=""):
+    global monitoring
+    monitoring = True
     monitor_thread = threading.Thread(target=monitor_devices, args=(interval,device_type,), daemon=True)
     monitor_thread.start()
+
+def stop_monitoring_in_background():
+    global monitoring
+    monitoring = False
 
 
 # usage example
