@@ -8,7 +8,7 @@ monitoring = False
 actual_monitoring = False
 devices_changed = False
 
-def monitor_devices(interval: float=5, device_type: str=None):
+def monitor_devices(interval: float=5, device_type: str=None, print_changes: bool=False):
     global actual_monitoring
     db_devices = get_components(type=device_type)
     prev_devices = []
@@ -36,7 +36,7 @@ def monitor_devices(interval: float=5, device_type: str=None):
 
             current_devices = get_connected_devices_by_class(device_type)
 
-            if not first_loop:
+            if not first_loop and print_changes:
                 for device in changed_devices:
                     print("Changed devices:")
                     print(f"Class: {device["Class"]}\nFriendlyName: {device['FriendlyName']}\nInstanceId: {device['InstanceId']}\nStatus: {device['Status']}\n")
