@@ -191,7 +191,8 @@ class SortableFilterTable(QMainWindow):
                 monitor.devices_changed = False
             self.status.setText("Статус: запущено" if monitor.actual_monitoring else "Статус: остановлено")
             sleep(1)
-        self.status.setText("Статус: запущено" if monitor.actual_monitoring else "Статус: остановлено")
+        sleep(1) # тут задержка вроде как не нужна, но с ней спокойнее)))
+        self.status.setText("Статус: остановлено")
 
 
 if __name__ == "__main__":
