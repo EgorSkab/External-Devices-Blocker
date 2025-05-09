@@ -6,8 +6,9 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QHeaderView,
     QMessageBox, QAction, QMenuBar, QToolButton, QLabel
 )
-from PyQt5.QtGui import QIcon, QTextBlock, QTextFrame
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QSize, QTimer
+
 import database
 import monitor
 
@@ -27,6 +28,7 @@ class SortableFilterTable(QMainWindow):
         self.column_ratios = [1, 2, 1, 1]
         self.initial_width = 1000  # Для хранения изначальной ширины окна
         self.status = 0
+        self.dark_theme_enabled = False
 
         self.init_ui()
 
@@ -92,6 +94,7 @@ class SortableFilterTable(QMainWindow):
 
         QTimer.singleShot(0, self.update_table)
         self.update_monitor_buttons()
+        self.toggle_theme()
 
     def create_menu(self):
         menu_bar = QMenuBar(self)
@@ -103,9 +106,9 @@ class SortableFilterTable(QMainWindow):
         file_menu.addAction(exit_action)
 
         view_menu = menu_bar.addMenu("Вид")
-        refresh_action = QAction("Переключить тему", self)
-        refresh_action.triggered.connect(self.update_table)
-        view_menu.addAction(refresh_action)
+        theme_action = QAction("Переключить тему", self)
+        theme_action.triggered.connect(self.toggle_theme)
+        view_menu.addAction(theme_action)
 
         help_menu = menu_bar.addMenu("Помощь")
         about_action = QAction("О программе", self)
@@ -142,10 +145,19 @@ class SortableFilterTable(QMainWindow):
         total_width = self.table.viewport().width()
         total_ratio = sum(self.column_ratios)
 
-        # Вычисление ширины столбцов с учетом пропорций
-        for col_idx, ratio in enumerate(self.column_ratios):
-            column_width = total_width * (ratio / total_ratio)
-            self.table.setColumnWidth(col_idx, int(column_width))
+        widths = []
+        accumulated = 0
+        for i, ratio in enumerate(self.column_ratios):
+            if i == len(self.column_ratios) - 1:
+                # Последний столбец получает остаток
+                width = total_width - accumulated
+            else:
+                width = round(total_width * (ratio / total_ratio))
+                accumulated += width
+            widths.append(width)
+
+        for col_idx, width in enumerate(widths):
+            self.table.setColumnWidth(col_idx, width)
 
     def change_sort(self, index):
         if self.sort_column == index:
@@ -156,7 +168,27 @@ class SortableFilterTable(QMainWindow):
         self.update_table()
 
     def show_about(self):
-        QMessageBox.information(self, "О программе", "Программа написано непонятно кем непонятно под чем. Используйте на свой страх и риск и да прибудет с вами Бог.")
+        QMessageBox.information(self, "О программе", "Программа написано непонятно кем непонятно под чем. Используйте на свой страх и риск и да прибудет с вами сила.")
+
+    def toggle_theme(self):
+        if self.dark_theme_enabled:
+            # Светлая тема
+            self.setStyleSheet("")
+        else:
+            # Тёмная тема (по умолчанию)
+            self.setStyleSheet("""
+                QMainWindow { background-color: #2b2b2b; color: #ffffff; }
+                QMenuBar, QMenu, QLabel, QTableWidget, QToolButton {
+                    background-color: #2b2b2b; color: #ffffff;
+                }
+                QTableWidget::item { background-color: #3b3b3b; }
+                QHeaderView::section {
+                    background-color: #444444;
+                    color: white;
+                    padding: 4px;
+                }
+            """)
+        self.dark_theme_enabled = not self.dark_theme_enabled
 
     def start_monitoring(self):
         self.monitoring_thread = threading.Thread(target=self.monitoring)
