@@ -2,7 +2,7 @@ import threading
 import time
 
 from commands import get_connected_devices_by_class
-from database import add_device, edit_device, get_components
+from database import add_device, edit_components, get_components
 
 monitoring = False
 actual_monitoring = False
@@ -53,7 +53,7 @@ def monitor_devices(interval: float=5, device_type: str=None, print_changes: boo
                     length -= 1
                 i += 1
             if changed_devices:
-                edit_device(changed_devices)
+                edit_components(changed_devices)
             if added_devices:
                 add_device(added_devices)
             global devices_changed

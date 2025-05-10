@@ -4,7 +4,8 @@ from time import sleep
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget, QHBoxLayout, QHeaderView,
-    QMessageBox, QAction, QMenuBar, QToolButton, QLabel
+    QMessageBox, QAction, QMenuBar, QToolButton, QLabel,
+    QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QComboBox
 )
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QSize, QTimer
@@ -17,24 +18,27 @@ class SortableFilterTable(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Блокировщик внешних устройств")
+        self.setWindowIcon(QIcon("icons/main_icon.png"))
         self.resize(1000, 700)
 
-        self.column_name = ["ID", "Name", "Permission", "Connected"]
+        self.devices_columns_names = ["ID", "Name", "Permission", "Connected"]
+        self.components_columns_names = ["Device ID", "IID", "Class", "Name", "Status"]
         self.sort_column = -1
         self.sort_order = Qt.AscendingOrder
-        self.monitoring_active = False  # 🔄 состояние мониторинга
+        self.monitoring_active = False
 
         # Пропорции столбцов относительно общей ширины окна
-        self.column_ratios = [1, 2, 1, 1]
-        self.initial_width = 1000  # Для хранения изначальной ширины окна
+        self.devices_column_ratios = [1, 6, 3, 3]
+        self.components_column_ratios = [1, 6, 2, 5, 2]
+        self.initial_width = 1600
         self.status = 0
         self.dark_theme_enabled = False
+        self.show_devices = True
+        self.admin_mode = 'Admin'
 
         self.init_ui()
 
     def init_ui(self):
-        self.create_menu()
-
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout()
@@ -69,61 +73,142 @@ class SortableFilterTable(QMainWindow):
         monitor_layout.addStretch()
         main_layout.addLayout(monitor_layout)
 
-        # --- Фильтры ---
-        # filter_layout = QHBoxLayout()
-        # self.filters = []
-        # for _ in range(4):
-        #     line_edit = QLineEdit()
-        #     line_edit.setPlaceholderText("Фильтр...")
-        #     line_edit.textChanged.connect(self.update_table)
-        #     self.filters.append(line_edit)
-        #     filter_layout.addWidget(line_edit)
-        # main_layout.addLayout(filter_layout)
-
         # --- Таблица ---
         self.table = QTableWidget()
+        self.table.setStyleSheet("""
+            QTableWidget::item:selected {
+                background-color: #B7B7B7;
+                color: white;
+            }
+        """)
+        self.table.setMouseTracking(True)
         self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(self.column_name)
+        self.table.setHorizontalHeaderLabels(self.devices_columns_names)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setMouseTracking(True)
         self.table.horizontalHeader().sectionClicked.connect(self.change_sort)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.cellClicked.connect(self.handle_row_clicked)
+        self.table.viewport().installEventFilter(self)
         main_layout.addWidget(self.table)
 
         main_widget.setLayout(main_layout)
 
         QTimer.singleShot(0, self.update_table)
         self.update_monitor_buttons()
-        self.toggle_theme()
+
+        self.create_menu()
 
     def create_menu(self):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
 
-        file_menu = menu_bar.addMenu("Файл")
-        exit_action = QAction("Выход", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        file_menu = menu_bar.addMenu("Данные")
+        toggle_action = QAction("Все компоненты/устройства", self)
+        toggle_action.triggered.connect(self.toggle_show_devices)
+        file_menu.addAction(toggle_action)
 
         view_menu = menu_bar.addMenu("Вид")
         theme_action = QAction("Переключить тему", self)
         theme_action.triggered.connect(self.toggle_theme)
         view_menu.addAction(theme_action)
 
+        # Меню администратора
+        admin_menu = menu_bar.addMenu("Админ")
+
+        self.admin_login_action = QAction("Режим админа", self)
+        self.admin_login_action.triggered.connect(self.show_admin_entrance_dialog)
+        admin_menu.addAction(self.admin_login_action)
+
+        self.reset_action = QAction("Сбросить данные", self)
+        self.reset_action.triggered.connect(self.reset_table)
+        admin_menu.addAction(self.reset_action)
+
+        self.change_pass_action = QAction("Изменить пароль", self)
+        self.change_pass_action.triggered.connect(self.show_change_password_dialog)
+        admin_menu.addAction(self.change_pass_action)
+
         help_menu = menu_bar.addMenu("Помощь")
         about_action = QAction("О программе", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
-    def update_table(self):
-        # filter_args = {
-        #     "id": self.filters[0].text() or None,
-        #     "name": self.filters[1].text() or None,
-        #     "permission": self.filters[2].text() or None,
-        #     "connected": self.filters[3].text() or None
-        # }
+        self.update_admin_actions_visibility()
 
-        data = database.get_devices()
+    def eventFilter(self, source, event):
+        if source == self.table.viewport() and event.type() == event.MouseMove:
+            index = self.table.indexAt(event.pos())
+            if index.isValid():
+                self.table.selectRow(index.row())
+        return super().eventFilter(source, event)
+
+    def handle_row_clicked(self, row):
+        if not self.show_devices or not self.admin_mode:
+            return
+
+        current_data = {}
+        for col_idx, col_name in enumerate(self.devices_columns_names):
+            item = self.table.item(row, col_idx)
+            current_data[col_name] = item.text() if item else ""
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Редактировать компонент")
+        form_layout = QFormLayout(dialog)
+
+        input_fields = {}
+        for idx, col in enumerate(self.devices_columns_names):
+            if idx == 0 or idx == 3:
+                label = QLabel(current_data[col])
+                form_layout.addRow(col + ":", label)
+                input_fields[col] = None
+            elif idx == 2:
+                combo = QComboBox()
+                combo.addItems(["Разрешено", "Заблокировано"])
+                combo.setCurrentText("Разрешено" if int(current_data[col]) == 1 else "Заблокировано")
+                form_layout.addRow(col + ":", combo)
+                input_fields[col] = combo
+            else:
+                field = QLineEdit(current_data[col])
+                form_layout.addRow(col + ":", field)
+                input_fields[col] = field
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        form_layout.addWidget(button_box)
+
+        def on_accept():
+            updated_data = {
+                col: (
+                    input_fields[col].currentText()
+                    if isinstance(input_fields[col], QComboBox)
+                    else input_fields[col].text()
+                ) if input_fields[col] is not None else current_data[col]
+                for col in self.devices_columns_names
+            }
+
+            database.edit_devices([{
+                "ID": updated_data["ID"],
+                "Name": updated_data["Name"],
+                "Permission": 1 if updated_data["Permission"] == 'Разрешено' else 0,
+                "Connected": updated_data["Connected"]
+            }])
+            dialog.accept()
+            self.update_table()
+
+        button_box.accepted.connect(on_accept)
+        button_box.rejected.connect(dialog.reject)
+        dialog.exec_()
+
+    def update_table(self):
+        if self.show_devices:
+            self.table.setColumnCount(4)
+            self.table.setHorizontalHeaderLabels(self.devices_columns_names)
+            data = database.get_devices()
+        else:
+            self.table.setColumnCount(5)
+            self.table.setHorizontalHeaderLabels(self.components_columns_names)
+            data = database.get_components()
 
         if self.sort_column >= 0:
             data.sort(
@@ -143,12 +228,13 @@ class SortableFilterTable(QMainWindow):
 
     def adjust_column_widths(self):
         total_width = self.table.viewport().width()
-        total_ratio = sum(self.column_ratios)
+        ratios = self.devices_column_ratios if self.show_devices else self.components_column_ratios
+        total_ratio = sum(ratios)
 
         widths = []
         accumulated = 0
-        for i, ratio in enumerate(self.column_ratios):
-            if i == len(self.column_ratios) - 1:
+        for i, ratio in enumerate(ratios):
+            if i == len(ratios) - 1:
                 # Последний столбец получает остаток
                 width = total_width - accumulated
             else:
@@ -165,6 +251,104 @@ class SortableFilterTable(QMainWindow):
         else:
             self.sort_column = index
             self.sort_order = Qt.AscendingOrder
+        self.update_table()
+
+    def show_admin_entrance_dialog(self):
+        if self.admin_mode:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Выход из режима администратора")
+            msg_box.setText("Вы действительно хотите выйти из режима админа?")
+            yes_button = msg_box.addButton("Да", QMessageBox.YesRole)
+            no_button = msg_box.addButton("Нет", QMessageBox.NoRole)
+            msg_box.exec_()
+
+            if msg_box.clickedButton() == yes_button:
+                self.admin_mode = None
+                self.update_admin_actions_visibility()
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Вход в режим администратора")
+
+        layout = QFormLayout(dialog)
+        login_input = QLineEdit()
+        password_input = QLineEdit()
+        password_input.setEchoMode(QLineEdit.Password)
+        layout.addRow("Логин:", login_input)
+        layout.addRow("Пароль:", password_input)
+
+        error_label = QLabel("")
+        error_label.setStyleSheet("color: red; font-size: 10pt")
+        layout.addRow(error_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addRow(button_box)
+
+        def check_credentials():
+            login = login_input.text()
+            password = password_input.text()
+            if database.check_password(login, password):
+                self.admin_mode = login
+                self.update_admin_actions_visibility()
+                dialog.accept()
+            else:
+                error_label.setText("Неправильный логин или пароль")
+                password_input.clear()
+
+        button_box.accepted.connect(check_credentials)
+        button_box.rejected.connect(dialog.reject)
+        dialog.exec_()
+
+    def show_change_password_dialog(self):
+        if not self.admin_mode:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Изменить пароль")
+
+        layout = QFormLayout(dialog)
+        old_pass_input = QLineEdit()
+        old_pass_input.setEchoMode(QLineEdit.Password)
+        new_pass_input = QLineEdit()
+        new_pass_input.setEchoMode(QLineEdit.Password)
+        confirm_pass_input = QLineEdit()
+        confirm_pass_input.setEchoMode(QLineEdit.Password)
+
+        layout.addRow("Старый пароль:", old_pass_input)
+        layout.addRow("Новый пароль:", new_pass_input)
+        layout.addRow("Подтвердить пароль:", confirm_pass_input)
+
+        error_label = QLabel("")
+        error_label.setStyleSheet("color: red; font-size: 10pt")
+        layout.addRow(error_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addRow(button_box)
+
+        def change_password():
+            old = old_pass_input.text()
+            new = new_pass_input.text()
+            confirm = confirm_pass_input.text()
+            if new != confirm:
+                error_label.setText("Новый пароль не совпадает с подтверждением")
+                return
+            if database.change_password(self.admin_mode, old, new):
+                QMessageBox.information(self, "Успех", "Пароль успешно изменён.")
+                dialog.accept()
+            else:
+                error_label.setText("Старый пароль неверен")
+
+        button_box.accepted.connect(change_password)
+        button_box.rejected.connect(dialog.reject)
+        dialog.exec_()
+
+    def update_admin_actions_visibility(self):
+        is_admin = self.admin_mode is not None
+        self.reset_action.setEnabled(is_admin)
+        self.change_pass_action.setEnabled(is_admin)
+
+    def reset_table(self):
+        database.initial_devices()
         self.update_table()
 
     def show_about(self):
@@ -190,12 +374,21 @@ class SortableFilterTable(QMainWindow):
             """)
         self.dark_theme_enabled = not self.dark_theme_enabled
 
+    def toggle_show_devices(self):
+        self.show_devices = not self.show_devices
+        if self.show_devices:
+            self.resize(1000, 700)
+        else:
+            self.resize(1600, 700)
+        self.update_table()
+        self.adjust_column_widths()
+
     def start_monitoring(self):
         self.monitoring_thread = threading.Thread(target=self.monitoring)
         self.monitoring_active = True
-        self.update_monitor_buttons()
         monitor.start_monitoring_in_background(1)
         self.monitoring_thread.start()
+        self.update_monitor_buttons()
 
     def stop_monitoring(self):
         self.monitoring_active = False

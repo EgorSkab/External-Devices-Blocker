@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3 as sql
 
 
@@ -21,7 +22,6 @@ def initial_devices(components: list[dict[str, str, str]]=None):
 
     connection.commit()
     connection.close()
-    print("Initial devices table has been created")
 
 
 def add_device(components: list[dict[str, str]]):
@@ -40,7 +40,7 @@ def add_device(components: list[dict[str, str]]):
     connection.close()
 
 
-def edit_device(components: list[dict[str, str]]):
+def edit_components(components: list[dict[str, str]]):
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
     device = cursor.execute(f"SELECT Device_ID FROM Components WHERE IID='{components[0]["InstanceId"]}'").fetchone()[0]
@@ -55,6 +55,15 @@ def edit_device(components: list[dict[str, str]]):
             cursor.execute(f"UPDATE Devices SET Connected=FALSE WHERE ID={device}")
     for component in components:
         cursor.execute(f"UPDATE Components SET Name='{component["FriendlyName"]}', Class='{component["Class"]}', Status='{component["Status"]}' WHERE IID='{component['InstanceId']}'")
+    connection.commit()
+    connection.close()
+
+
+def edit_devices(devices: list[dict[str, str]]):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    for device in devices:
+        cursor.execute(f"UPDATE Devices SET Name='{device["Name"]}', Permission='{device["Permission"]}' WHERE ID='{device['ID']}'")
     connection.commit()
     connection.close()
 
@@ -130,3 +139,22 @@ def get_devices(id: str=None, name: str=None, permission: str=None, connected: s
         query = f"Connected={connected} "
     devices = cursor.execute(query).fetchall()
     return devices
+
+def check_password(login: str, checked_password: str):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    password = cursor.execute(f"SELECT Password FROM AdminData WHERE Admin_username='{login}'").fetchall()[0][0]
+    checked_password = hashlib.sha256(checked_password.encode('utf-8')).hexdigest()
+    return password == checked_password
+
+def change_password(login: str, old_pass: str, new_pass: str):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    success = False
+    if cursor.execute(f"SELECT Password FROM AdminData WHERE Admin_username='{login}'").fetchone()[0] == hashlib.sha256(old_pass.encode('utf-8')).hexdigest():
+        new_pass = hashlib.sha256(new_pass.encode('utf-8')).hexdigest()
+        cursor.execute(f"UPDATE AdminData SET Password='{new_pass}' WHERE Admin_username='{login}'")
+        connection.commit()
+        success = True
+    connection.close()
+    return success
