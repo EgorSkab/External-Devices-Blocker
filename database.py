@@ -1,4 +1,5 @@
 import hashlib
+import datetime
 import sqlite3 as sql
 
 from commands import unblock_device_by_id, block_device_by_id
@@ -40,6 +41,7 @@ def add_device(components: list[dict[str, str]]):
     cursor.execute(query[:-2])
     connection.commit()
     connection.close()
+    add_log_entry(device_id, True)
 
 
 def edit_components(components: list[dict[str, str]]):
@@ -51,14 +53,16 @@ def edit_components(components: list[dict[str, str]]):
         add_device(components)
         return
     else:
-        if components[0]["Status"] == "OK":
-            cursor.execute(f"UPDATE Devices SET Connected=TRUE WHERE ID={device}")
-        else:
-            cursor.execute(f"UPDATE Devices SET Connected=FALSE WHERE ID={device}")
+        new_status = components[0]["Status"] == "OK"
+        old_status = cursor.execute(f"SELECT Connected FROM Devices WHERE ID={device}").fetchone()[0]
+        if old_status != new_status:
+            cursor.execute(f"UPDATE Devices SET Connected={new_status} WHERE ID={device}")
+
     for component in components:
         cursor.execute(f"UPDATE Components SET Name='{component["FriendlyName"]}', Class='{component["Class"]}', Status='{component["Status"]}' WHERE IID='{component['InstanceId']}'")
     connection.commit()
     connection.close()
+    add_log_entry(device, new_status)
 
 
 def edit_devices(devices: list[dict[str, str]]):
@@ -167,3 +171,18 @@ def change_password(login: str, old_pass: str, new_pass: str):
         success = True
     connection.close()
     return success
+
+
+def get_log():
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    cursor.execute(f"SELECT Time, Device_ID, NewStatus FROM Connections ORDER BY Time DESC")
+    return cursor.fetchall()
+
+
+def add_log_entry(device_id: int, status: bool):
+    connection = sql.connect('devices.db')
+    cursor = connection.cursor()
+    cursor.execute(f"INSERT INTO Connections (Time, Device_ID, NewStatus) VALUES ('{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}', {device_id}, {status})")
+    connection.commit()
+    connection.close()

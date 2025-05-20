@@ -134,6 +134,9 @@ class SortableFilterTable(QMainWindow):
         toggle_action = QAction("Все компоненты/устройства", self)
         toggle_action.triggered.connect(self.toggle_show_devices)
         file_menu.addAction(toggle_action)
+        self.log_action = QAction("Лог", self)
+        self.log_action.triggered.connect(self.show_log_window)
+        file_menu.addAction(self.log_action)
 
         view_menu = menu_bar.addMenu("Вид")
         theme_action = QAction("Переключить тему", self)
@@ -469,6 +472,8 @@ class SortableFilterTable(QMainWindow):
         is_admin = self.admin_mode is not None
         self.reset_action.setEnabled(is_admin)
         self.change_pass_action.setEnabled(is_admin)
+        self.log_action.setEnabled(is_admin)
+        self.update_monitor_buttons()
 
     def reset_table(self):
         database.initial_devices()
@@ -505,6 +510,32 @@ class SortableFilterTable(QMainWindow):
             self.resize(1600, 700)
         self.update_table()
         self.adjust_column_widths()
+
+    def show_log_window(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Лог изменений")
+        dialog.resize(700, 400)
+
+        layout = QVBoxLayout(dialog)
+        log_table = QTableWidget()
+        log_table.setColumnCount(3)
+        log_table.setHorizontalHeaderLabels(["Time", "Device ID", "New Status"])
+        log_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        log_table.setSelectionBehavior(QTableWidget.SelectRows)
+        log_table.verticalHeader().setVisible(False)
+        log_table.horizontalHeader().setStretchLastSection(True)
+
+        logs = database.get_log()
+        log_table.setRowCount(len(logs))
+        for row_idx, row_data in enumerate(logs):
+            for col_idx, value in enumerate(row_data):
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignCenter)
+                log_table.setItem(row_idx, col_idx, item)
+
+        layout.addWidget(log_table)
+        dialog.setLayout(layout)
+        dialog.exec_()
 
     def start_monitoring(self):
         self.monitoring_thread = threading.Thread(target=self.monitoring)
