@@ -5,9 +5,10 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget, QHBoxLayout, QHeaderView,
     QMessageBox, QAction, QMenuBar, QToolButton, QLabel,
-    QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QComboBox
+    QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QComboBox,
+    QSystemTrayIcon, QMenu
 )
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QCloseEvent
 from PyQt5.QtCore import Qt, QSize, QTimer
 
 import database
@@ -34,7 +35,7 @@ class SortableFilterTable(QMainWindow):
         self.status = 0
         self.dark_theme_enabled = False
         self.show_devices = True
-        self.admin_mode = 'Admin'
+        self.admin_mode = "Admin"
 
         self.init_ui()
 
@@ -90,8 +91,14 @@ class SortableFilterTable(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.cellClicked.connect(self.handle_row_clicked)
         self.table.viewport().installEventFilter(self)
+        self.back_button = QToolButton()
+        self.back_button.setIcon(QIcon("icons/back_to_devices.png"))  # убедись, что иконка есть или замени на текст
+        self.back_button.setText("Назад")
+        self.back_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.back_button.setVisible(False)
+        self.back_button.clicked.connect(self.return_to_devices)
+        main_layout.addWidget(self.back_button)
         main_layout.addWidget(self.table)
 
         main_widget.setLayout(main_layout)
@@ -100,6 +107,24 @@ class SortableFilterTable(QMainWindow):
         self.update_monitor_buttons()
 
         self.create_menu()
+
+        self.tray_icon = QSystemTrayIcon(QIcon("icons/main_icon.png"), self)
+        self.tray_icon.setToolTip("Блокировщик внешних устройств")
+
+        # --- Меню трея ---
+        tray_menu = QMenu()
+
+        restore_action = QAction("Развернуть", self)
+        restore_action.triggered.connect(self.show_normal_window)
+        tray_menu.addAction(restore_action)
+
+        quit_action = QAction("Выход", self)
+        quit_action.triggered.connect(self.exit_app)
+        tray_menu.addAction(quit_action)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.tray_icon_clicked)
+        self.tray_icon.show()
 
     def create_menu(self):
         menu_bar = QMenuBar(self)
@@ -137,11 +162,36 @@ class SortableFilterTable(QMainWindow):
 
         self.update_admin_actions_visibility()
 
+    def return_to_devices(self):
+        self.show_devices = True
+        self.resize(1000, 700)
+        self.back_button.setVisible(False)
+        self.update_table()
+
     def eventFilter(self, source, event):
-        if source == self.table.viewport() and event.type() == event.MouseMove:
-            index = self.table.indexAt(event.pos())
-            if index.isValid():
-                self.table.selectRow(index.row())
+        if source == self.table.viewport():
+            if event.type() == event.MouseMove:
+                index = self.table.indexAt(event.pos())
+                if index.isValid():
+                    self.table.selectRow(index.row())
+
+            elif event.type() == event.MouseButtonPress:
+                index = self.table.indexAt(event.pos())
+                if not index.isValid():
+                    return super().eventFilter(source, event)
+
+                row = index.row()
+                if event.button() == Qt.RightButton:
+                    self.open_edit_device_dialog(row)
+                elif event.button() == Qt.LeftButton:
+                    if not self.show_devices:
+                        return super().eventFilter(source, event)  # игнорируем клик, если не в режиме устройств
+                    device_id = self.table.item(row, 0).text()
+                    if device_id.isdigit():
+                        self.show_devices = False
+                        self.resize(1600, 700)
+                        self.update_table_for_device(int(device_id))
+
         return super().eventFilter(source, event)
 
     def handle_row_clicked(self, row):
@@ -199,6 +249,77 @@ class SortableFilterTable(QMainWindow):
         button_box.accepted.connect(on_accept)
         button_box.rejected.connect(dialog.reject)
         dialog.exec_()
+
+    def open_edit_device_dialog(self, row):
+        if not self.show_devices or not self.admin_mode:
+            return
+
+        current_data = {}
+        for col_idx, col_name in enumerate(self.devices_columns_names):
+            item = self.table.item(row, col_idx)
+            current_data[col_name] = item.text() if item else ""
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Редактировать устройство")
+        form_layout = QFormLayout(dialog)
+
+        input_fields = {}
+        for idx, col in enumerate(self.devices_columns_names):
+            if idx == 0 or idx == 3:
+                label = QLabel(current_data[col])
+                form_layout.addRow(col + ":", label)
+                input_fields[col] = None
+            elif idx == 2:
+                combo = QComboBox()
+                combo.addItems(["Разрешено", "Заблокировано"])
+                combo.setCurrentText("Разрешено" if int(current_data[col]) == 1 else "Заблокировано")
+                form_layout.addRow(col + ":", combo)
+                input_fields[col] = combo
+            else:
+                field = QLineEdit(current_data[col])
+                form_layout.addRow(col + ":", field)
+                input_fields[col] = field
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        form_layout.addWidget(button_box)
+
+        def on_accept():
+            updated_data = {
+                col: (
+                    input_fields[col].currentText()
+                    if isinstance(input_fields[col], QComboBox)
+                    else input_fields[col].text()
+                ) if input_fields[col] is not None else current_data[col]
+                for col in self.devices_columns_names
+            }
+
+            database.edit_devices([{
+                "ID": updated_data["ID"],
+                "Name": updated_data["Name"],
+                "Permission": 1 if updated_data["Permission"] == 'Разрешено' else 0,
+                "Connected": updated_data["Connected"]
+            }])
+            dialog.accept()
+            self.update_table()
+
+        button_box.accepted.connect(on_accept)
+        button_box.rejected.connect(dialog.reject)
+        dialog.exec_()
+
+    def update_table_for_device(self, device_id: int):
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(self.components_columns_names)
+        data = database.get_components(id=device_id)
+
+        self.table.setRowCount(len(data))
+        for row_idx, row_data in enumerate(data):
+            for col_idx, value in enumerate(row_data):
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(row_idx, col_idx, item)
+
+        self.adjust_column_widths()
+        self.back_button.setVisible(True)
 
     def update_table(self):
         if self.show_devices:
@@ -265,6 +386,7 @@ class SortableFilterTable(QMainWindow):
             if msg_box.clickedButton() == yes_button:
                 self.admin_mode = None
                 self.update_admin_actions_visibility()
+                self.update_monitor_buttons()
             return
 
         dialog = QDialog(self)
@@ -290,6 +412,7 @@ class SortableFilterTable(QMainWindow):
             if database.check_password(login, password):
                 self.admin_mode = login
                 self.update_admin_actions_visibility()
+                self.update_monitor_buttons()
                 dialog.accept()
             else:
                 error_label.setText("Неправильный логин или пароль")
@@ -398,7 +521,7 @@ class SortableFilterTable(QMainWindow):
 
     def update_monitor_buttons(self):
         self.start_button.setEnabled(not self.monitoring_active)
-        self.stop_button.setEnabled(self.monitoring_active)
+        self.stop_button.setEnabled(self.monitoring_active and self.admin_mode is not None)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -418,6 +541,33 @@ class SortableFilterTable(QMainWindow):
             sleep(1)
         sleep(1) # тут задержка вроде как не нужна, но с ней спокойнее)))
         self.status.setText("Статус: остановлено")
+
+    def show_normal_window(self):
+        self.showNormal()
+        self.activateWindow()
+
+    def tray_icon_clicked(self, reason):
+        if reason == QSystemTrayIcon.Trigger:
+            self.show_normal_window()
+
+    def exit_app(self):
+        if self.admin_mode is not None:
+            self.tray_icon.hide()
+            self.monitoring_active = False
+            monitor.stop_monitoring_in_background()
+            if hasattr(self, "monitoring_thread") and self.monitoring_thread.is_alive():
+                self.monitoring_thread.join()
+            QApplication.quit()
+
+    def closeEvent(self, event: QCloseEvent):
+        event.ignore()
+        self.hide()
+        self.tray_icon.showMessage(
+            "Свернуто в трей",
+            "Программа продолжает работать в фоне.",
+            QSystemTrayIcon.Information,
+            3000
+        )
 
 
 if __name__ == "__main__":

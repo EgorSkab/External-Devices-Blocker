@@ -1,4 +1,5 @@
 import subprocess
+import database
 
 
 def get_connected_devices_by_class(device_type: str=None, status: str=None):
@@ -23,7 +24,8 @@ def get_connected_devices_by_class(device_type: str=None, status: str=None):
         return f"Error retrieving {device_type} devices: {str(e)}"
 
 
-def block_device_by_id(device_iid: str):
+def block_component_by_iid(device_iid: str):
+    print(device_iid)
     try:
         result = subprocess.run(f'powershell.exe -Command "Disable-PnpDevice -InstanceId \'{device_iid}\' -Confirm:$false"', shell=True, text=True, capture_output=True)
         if result.returncode == 0:
@@ -34,7 +36,7 @@ def block_device_by_id(device_iid: str):
         return f"Error blocking device {device_iid}: {str(e)}"
 
 
-def unblock_device_by_id(device_iid: str):
+def unblock_component_by_iid(device_iid: str):
     try:
         result = subprocess.run(f'powershell.exe -Command "Enable-PnpDevice -InstanceId \'{device_iid}\' -Confirm:$false"', shell=True, text=True, capture_output=True)
         if result.returncode == 0:
@@ -43,3 +45,14 @@ def unblock_device_by_id(device_iid: str):
             return f"Failed to unblock device {device_iid}."
     except Exception as e:
         return f"Error unblocking device {device_iid}: {str(e)}"
+
+
+def block_device_by_id(id: int):
+    components = database.get_components(id=id)
+    for component in components:
+        block_component_by_iid(component[1])
+
+def unblock_device_by_id(id: int):
+    components = database.get_components(id=id)
+    for component in components:
+        unblock_component_by_iid(component[1])

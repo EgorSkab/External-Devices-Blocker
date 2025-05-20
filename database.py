@@ -1,6 +1,8 @@
 import hashlib
 import sqlite3 as sql
 
+from commands import unblock_device_by_id, block_device_by_id
+
 
 def initial_devices(components: list[dict[str, str, str]]=None):
     connection = sql.connect('devices.db')
@@ -64,6 +66,10 @@ def edit_devices(devices: list[dict[str, str]]):
     cursor = connection.cursor()
     for device in devices:
         cursor.execute(f"UPDATE Devices SET Name='{device["Name"]}', Permission='{device["Permission"]}' WHERE ID='{device['ID']}'")
+        if device["Permission"] == 1:
+            unblock_device_by_id(int(device["ID"]))
+        else:
+            block_device_by_id(int(device["ID"]))
     connection.commit()
     connection.close()
 
@@ -112,6 +118,7 @@ def get_components(id: int=None, iid: str=None, type: str=None, name: str=None, 
     components = cursor.execute(query).fetchall()
     return components
 
+
 def get_devices(id: str=None, name: str=None, permission: str=None, connected: str=None):
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
@@ -140,12 +147,14 @@ def get_devices(id: str=None, name: str=None, permission: str=None, connected: s
     devices = cursor.execute(query).fetchall()
     return devices
 
+
 def check_password(login: str, checked_password: str):
     connection = sql.connect('devices.db')
     cursor = connection.cursor()
     password = cursor.execute(f"SELECT Password FROM AdminData WHERE Admin_username='{login}'").fetchall()[0][0]
     checked_password = hashlib.sha256(checked_password.encode('utf-8')).hexdigest()
     return password == checked_password
+
 
 def change_password(login: str, old_pass: str, new_pass: str):
     connection = sql.connect('devices.db')
