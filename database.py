@@ -2,6 +2,7 @@ import hashlib
 import datetime
 import sqlite3 as sql
 
+import commands
 from commands import unblock_device_by_id, block_device_by_id
 
 
@@ -41,6 +42,7 @@ def add_device(components: list[dict[str, str]]):
     cursor.execute(query[:-2])
     connection.commit()
     connection.close()
+    commands.block_device_by_id(device_id)
     add_log_entry(device_id, True)
 
 

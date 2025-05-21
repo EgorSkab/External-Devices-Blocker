@@ -25,7 +25,6 @@ def get_connected_devices_by_class(device_type: str=None, status: str=None):
 
 
 def block_component_by_iid(device_iid: str):
-    print(device_iid)
     try:
         result = subprocess.run(f'powershell.exe -Command "Disable-PnpDevice -InstanceId \'{device_iid}\' -Confirm:$false"', shell=True, text=True, capture_output=True)
         if result.returncode == 0:

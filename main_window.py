@@ -480,7 +480,9 @@ class SortableFilterTable(QMainWindow):
         self.update_table()
 
     def show_about(self):
-        QMessageBox.information(self, "О программе", "Программа написано непонятно кем непонятно под чем. Используйте на свой страх и риск и да прибудет с вами сила.")
+        QMessageBox.information(self, "О программе", "Программа для блокировки и отслеживания подключений внешних устройств.\n"
+                                                     "Автор: Скабицкий Е.А.\n"
+                                                     "Контакт для связи (Telegram): @egorskab")
 
     def toggle_theme(self):
         if self.dark_theme_enabled:

@@ -79,11 +79,3 @@ def start_monitoring_in_background(interval: float=5, device_type: str=""):
 def stop_monitoring_in_background():
     global monitoring
     monitoring = False
-
-
-# usage example
-# if __name__ == '__main__':
-#     initial_devices()
-#     start_monitoring_in_background(1)
-#     while True:
-#         pass
